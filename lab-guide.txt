@@ -1,0 +1,333 @@
+ServerCheck: Building a Python CLI with Click
+Introduction
+We frequently have to check whether one of our servers has access to other servers on our internal network. To make this a little easier for ourselves, we've decided to use Python to write a CLI that can either take a JSON file with servers and ports to check or a list of host/port combinations to make requests to. In this hands-on lab, we're going to outline our CLI using the click library.
+
+Connect to the Lab
+Option 1: Connect with the Visual Studio (VS) Code Editor
+Open your terminal application, and run the following command:
+ssh cloud_user@PUBLIC_IP
+Enter yes at the prompt.
+Enter your cloud_user password at the prompt.
+Run exit to close the connection.
+Run the following command:
+ssh-copy-id cloud_user@PUBLIC_IP
+Enter your password at the prompt.
+Open Visual Studio Code.
+In the search bar at the top, enter cloud_user@PUBLIC_IP.
+Once you've connected, click the square Extensions icon in the left sidebar.
+Under Local - Installed, scroll down to Python and click Install on SSH.
+Click Reload to make the changes take effect.
+Option 2: Connect with Your Local Machine
+Open your terminal application, and run the following command (remember to replace PUBLIC_IP with the public IP you were provided on the lab instructions page):
+ssh cloud_user@PUBLIC_IP
+Type yes at the prompt.
+Enter your cloud_user password at the prompt.
+Set Up a Project and Virtualenv Using Pipenv
+Make a new directory named servercheck and an internal subdirectory named servercheck to hold the Python package.
+mkdir -p servercheck/servercheck
+Change to the servercheck subdirectory.
+cd servercheck
+In the servercheck subdirectory, create a new file named __init__.py.
+touch servercheck/__init__.py
+Install Pipenv.
+pip3.7 install --user -U pipenv
+Create a virtualenv, and install click:
+pipenv --python python3.7 install click
+Activate the virtualenv.
+pipenv shell
+Define the CLI Function
+Create the command line function in a module named cli within the servercheck package.
+import click
+
+@click.command()
+def cli():
+    pass
+
+if __name__ == "__main__":
+    cli()
+Run the CLI.
+python servercheck/cli.py --help
+Add the required decorators from the Click library.
+import click
+
+@click.command()
+@click.option("--filename", "-f", default=None)
+@click.option("--server", "-s", default=None, multiple=True)
+def cli(filename, server):
+    if not filename and not server:
+        raise click.UsageError("must provide a JSON file or servers")
+
+if __name__ == "__main__":
+    cli()
+You should receive an error, which is expected since we haven't passed any arguments yet.
+Create a set to hold on to all of the server/IP combinations, and add anything from the JSON file if given and also the values passed using the --server or -s flags.
+import click
+import json
+import sys
+
+@click.command()
+@click.option("--filename", "-f", default=None)
+@click.option("--server", "-s", default=None, multiple=True)
+def cli(filename, server):
+    if not filename and not server:
+        raise click.UsageError("must provide a JSON file or servers")
+
+    # Create a set to prevent duplicate server/port combinations
+    servers = set()
+
+    # If --filename or -f option is used then attempt to read
+    # the file and add all values to the `servers` set.
+    if filename:
+        try:
+            with open(filename) as f:
+                json_servers = json.load(f)
+                for s in json_servers:
+                    servers.add(s)
+        except:
+            print("Error: Unable to open or read JSON file")
+            sys.exit(1)
+
+    # If --server or -s option are used then add those values
+    # to the set.
+    if server:
+        for s in server:
+            servers.add(s)
+
+    print(servers)
+
+if __name__ == "__main__":
+    cli()
+Create an example JSON file to parse.
+touch example.json
+Open the file with your preferred editor (e.g., vim).
+vim example.json
+Add the following content to the file:
+[
+    "JSONIP:PORT",
+    "JSONIP:PORT",
+    "JSONIP2:PORT2"
+]
+Test the function by passing it the example JSON file in combination with the --server option.
+python servercheck/cli.py -f example.json --server "IP1:PORT1" -s "IP2:Port1"
+Create setup.py with console_scripts for servercheck
+Pull down the starter setup.py.
+curl -O https://raw.githubusercontent.com/kennethreitz/setup.py/master/setup.py
+Edit the file to add click as a dependency in the REQUIRED list, create the console_script, and remove the UploadCommand.
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import io
+import os
+import sys
+from shutil import rmtree
+
+from setuptools import find_packages, setup, Command
+
+# Package meta-data.
+NAME = "servercheck"
+DESCRIPTION = (
+    "CLI to ensure that HTTP requests can be made to various server/port combinations"
+)
+URL = "https://github.com/me/myproject"
+EMAIL = "me@example.com"
+AUTHOR = "Awesome Soul"
+REQUIRES_PYTHON = ">=3.7.0"
+VERSION = "0.1.0"
+
+# What packages are required for this module to be executed?
+REQUIRED = ["click"]
+
+# What packages are optional?
+EXTRAS = {
+    # 'fancy feature': ['django'],
+}
+
+# The rest you shouldn't have to touch too much :)
+# ------------------------------------------------
+# Except, perhaps the License and Trove Classifiers!
+# If you do change the License, remember to change the Trove Classifier for that!
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+# Import the README and use it as the long-description.
+# Note: this will only work if 'README.md' is present in your MANIFEST.in file!
+try:
+    with io.open(os.path.join(here, "README.md"), encoding="utf-8") as f:
+        long_description = "\n" + f.read()
+except FileNotFoundError:
+    long_description = DESCRIPTION
+
+# Load the package's __version__.py module as a dictionary.
+about = {}
+if not VERSION:
+    project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
+    with open(os.path.join(here, project_slug, "__version__.py")) as f:
+        exec(f.read(), about)
+else:
+    about["__version__"] = VERSION
+
+# Where the magic happens:
+setup(
+    name=NAME,
+    version=about["__version__"],
+    description=DESCRIPTION,
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    author=AUTHOR,
+    author_email=EMAIL,
+    python_requires=REQUIRES_PYTHON,
+    url=URL,
+    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
+    # If your package is a single module, use this instead of 'packages':
+    # py_modules=['mypackage'],
+    entry_points={"console_scripts": ["servercheck=servercheck.cli:cli"]},
+    install_requires=REQUIRED,
+    extras_require=EXTRAS,
+    include_package_data=True,
+    license="MIT",
+    classifiers=[
+        # Trove classifiers
+        # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Programming Language :: Python :: Implementation :: PyPy",
+    ],
+)
+Install the tool and make it editable.
+pip install -e .
+Run the tool.
+servercheck -s "SERVER:1000" -s "SERVER2:2000" -f example.json
+Conclusion
+
+Create the http Module within the servercheck Package and Install requests
+Change to the servercheck directory.
+cd servercheck
+Create a virtualenv.
+pipenv install --python python3.7
+Activate the virtualenv.
+pipenv shell
+Create a module called http.py within the servercheck directory that contains __init__.py.
+touch servercheck/http.py
+Install the requests package as a dependency.
+pipenv install requests
+Open setup.py, and add requests to the REQUIRED list.
+# What packages are required for this module to be executed?
+REQUIRED = ["click", "requests"]
+Make Concurrent Requests and Return the Results
+From within the http module, create a function called ping_servers.
+def ping_servers(servers):
+    results = {'success': [], 'failure': []}
+    asyncio.run(make_requests(servers, results))
+    return results
+Create the make_requests, ping, and get functions.
+import asyncio
+import requests
+import os
+
+def get(server):
+    debug = os.getenv("DEBUG")
+    try:
+        if debug:
+            print(f"Making request to {server}")
+        response = requests.get(f"http://{server}")
+        if debug:
+            print(f"Received response from {server}")
+        return {"status_code": response.status_code, "server": server}
+    except:
+        if debug:
+            print(f"Failed to connect to {server}")
+        return {"status_code": -1, "server": server}
+
+async def ping(server, results):
+    loop = asyncio.get_event_loop()
+    future_result = loop.run_in_executor(None, get, server)
+    result = await future_result
+    if result["status_code"] in range(200, 299):
+        results["success"].append(server)
+    else:
+        results["failure"].append(server)
+
+async def make_requests(servers, results):
+    tasks = []
+
+    for server in servers:
+        task = asyncio.create_task(ping(server, results))
+        tasks.append(task)
+
+    await asyncio.gather(*tasks)
+
+def ping_servers(servers):
+    results = {"success": [], "failure": []}
+    asyncio.run(make_requests(servers, results))
+    return results
+
+Test Against Additional Servers Using REPL
+From within the virtualenv, run the following:
+DEBUG=true PYTHONPATH=. python
+>>> from servercheck.http import ping_servers
+>>> servers = ('web-node1:80', 'web-node2:80', 'web-node1:3000', 'web-node2:3000', 'web-node1:8080')
+>>> ping_servers(servers)
+Utilize servercheck.http.ping_servers in the CLI Function
+Open cli.py, and edit the file to pass the server information collected by the cli function to the ping_servers function.
+import click
+import json
+import sys
+from .http import ping_servers
+
+@click.command()
+@click.option("--filename", "-f", default=None)
+@click.option("--server", "-s", default=None, multiple=True)
+def cli(filename, server):
+    if not filename and not server:
+        raise click.UsageError("must provide a JSON file or servers")
+
+    # Create a set to prevent duplicate server/port combinations
+    servers = set()
+
+    # If --filename or -f option is used then attempt to read
+    # the file and add all values to the `servers` set.
+    if filename:
+        try:
+            with open(filename) as f:
+                json_servers = json.load(f)
+                for s in json_servers:
+                    servers.add(s)
+        except:
+            print("Error: Unable to open or read JSON file")
+            sys.exit(1)
+
+    # If --server or -s option are used then add those values
+    # to the set.
+    if server:
+        for s in server:
+            servers.add(s)
+
+    # Make requests and collect results
+    results = ping_servers(servers)
+Add the following lines to the end of the file, under the line results = ping_servers(servers):
+  print("Successful Connections")
+  print("---------------------")
+  for server in results['success']:
+      print(server)
+
+  print("\n Failed Connections")
+  print("------------------")
+  for server in results['failure']:
+      print(server)
+Install the package into the virtualenv in editable mode.
+pip install -e .
+Create a test JSON file named example.json within the project directory.
+touch example.json
+Add the following to the test file:
+[
+    "web-node1:80",
+    "web-node1:8000",
+    "web-node1:3000",
+    "web-node2:80",
+    "web-node2:3000"
+]
+Run the following command to test the tool:
+servercheck -f example.json -s 'web-node1:80' -s 'web-node1:9000'
